@@ -1,0 +1,45 @@
+name: build and push
+on:
+  push:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    # Google Cloudの認証でgoogle-github-actions/authを利用する際に必要なpermissions設定
+    # see. https://github.com/google-github-actions/auth?tab=readme-ov-file#usage
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      ARTIFACT_REGISTRY: infra-test
+      REGION: asia-northeast1
+      APP_NAME: backend
+      
+    steps:
+      - uses: actions/checkout@v4
+      - name: 'Google auth'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: '${{secrets.WIF_PROVIDER}}'
+          service_account: '${{secrets.WIF_SERVICE_ACCOUNT}}'
+          
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+        with:
+          version: '>= 363.0.0'
+          
+      - name: 'Docker auth'
+        run: |-
+          gcloud auth configure-docker ${{env.REGION}}-docker.pkg.dev
+      
+      - name: 'Build and push container'
+        run: |-
+          docker build -t "${{env.REGION}}-docker.pkg.dev/${{secrets.PROJECT_ID}}/${{env.ARTIFACT_REGISTRY}}/${{env.APP_NAME}}:${{github.sha}}" .
+          docker push "${{env.REGION}}-docker.pkg.dev/${{secrets.PROJECT_ID}}/${{env.ARTIFACT_REGISTRY}}/${{env.APP_NAME}}:${{github.sha}}"
+
+      - name: 'Deploy to Cloud Run'
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          service: ${{env.APP_NAME}}
+          region: ${{env.REGION}}
+          image: ${{env.REGION}}-docker.pkg.dev/${{secrets.PROJECT_ID}}/${{env.ARTIFACT_REGISTRY}}/${{env.APP_NAME}}:${{github.sha}}
