@@ -14,7 +14,7 @@ func main() {
 
 	// Define the handler for the root route
 	e.GET("/", func(c echo.Context) error {
-		name := os.Getenv("NAME")
+		name := os.Getenv("ACCESS")
 		if name == "" {
 			name = "World"
 		}
